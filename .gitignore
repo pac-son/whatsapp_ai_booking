@@ -1,0 +1,15 @@
+# Environment secrets
+.env
+backend/.env
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+backend/venv/
+venv/
+.venv/
+
+# IDE files
+.vscode/
+.idea/
