@@ -61,8 +61,7 @@ async def process_customer_message(phone_number: str, user_text: str) -> str:
                         f"💬 Message: \"{user_text}\"\n\n"
                         f"The customer requested to speak with you directly. You can now reply to them in WhatsApp!"
                     )
-                    import asyncio
-                    asyncio.create_task(send_whatsapp_message(to_number=owner_phone, message_text=alert_text))
+                    await send_whatsapp_message(to_number=owner_phone, message_text=alert_text)
 
                 return (
                     "No wahala at all! I don notify Aduke, our salon owner. 🙋🏾‍♀️\n\n"

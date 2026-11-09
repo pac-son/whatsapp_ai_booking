@@ -100,21 +100,26 @@ async def handle_incoming_message_task(from_number: str, message_body: str):
     Background worker: Processes message with AI and replies via WhatsApp Cloud API.
     """
     try:
-        print(f"\n[INCOMING] From {from_number}: {message_body}")
+        # Safe ASCII representation for Windows console
+        safe_body = message_body.encode('ascii', errors='replace').decode('ascii')
+        print(f"\n[INCOMING] From {from_number}: {safe_body}", flush=True)
         
         # 1. Process message through AI engine
         reply_text = await process_customer_message(from_number, message_body)
-        print(f"[AI REPLY] To {from_number}:\n{reply_text}\n")
         
-        # 2. Send the reply back to the customer on WhatsApp
+        safe_reply = reply_text.encode('ascii', errors='replace').decode('ascii')
+        print(f"[AI REPLY] To {from_number}:\n{safe_reply}\n", flush=True)
+        
+        # 2. Send the full UTF-8 reply (with emojis) back to WhatsApp
         delivered = await send_whatsapp_message(to_number=from_number, message_text=reply_text)
         if delivered:
-            print(f"[SUCCESS] Replied to {from_number}")
+            print(f"[SUCCESS] Replied to {from_number}", flush=True)
         else:
-            print(f"[FAILED] Could not deliver message to {from_number}")
+            print(f"[FAILED] Could not deliver message to {from_number}", flush=True)
             
     except Exception as e:
-        print(f"[ERROR] Exception in message handling task: {e}")
+        import traceback
+        traceback.print_exc()
 
 @app.post("/webhook")
 async def handle_whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
