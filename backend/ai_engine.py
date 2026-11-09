@@ -55,10 +55,31 @@ async def process_customer_message(phone_number: str, user_text: str) -> str:
                     "• Stitch Braids: from £50\n\n"
                     "Which style would you like to book for?"
                 )
-            elif "book" in text_lower or "slot" in text_lower or "available" in text_lower:
+            elif any(w in text_lower for w in ["book", "slot", "available", "friday", "saturday", "tomorrow", "today"]):
+                from database import create_booking_record
+                from stripe_service import create_deposit_checkout_session
+                
+                booking = create_booking_record(
+                    phone=phone_number,
+                    service="Medium Knotless Braids",
+                    appt_time="Friday 2:00 PM",
+                    total_price=120.0,
+                    deposit=20.0
+                )
+                pay_link = create_deposit_checkout_session(
+                    booking_id=booking.id,
+                    service_name=booking.service_name,
+                    deposit_amount=booking.deposit_amount,
+                    customer_phone=phone_number
+                )
                 return (
-                    "We have slots open this week from Wednesday to Saturday between 9:00 AM and 7:00 PM! "
-                    "Which day and time works best for you? (Please note a £20 deposit is required to secure your booking)."
+                    f"We got Friday at 2:00 PM open for you! 🎉\n\n"
+                    f"📋 *Booking Summary:*\n"
+                    f"• Service: Medium Knotless Braids (£120)\n"
+                    f"• Time: Friday @ 2:00 PM\n"
+                    f"• Deposit required: £20\n\n"
+                    f"To lock down your seat, please pay the £20 deposit here:\n{pay_link}\n\n"
+                    f"Once paid, your appointment is 100% confirmed! No wahala!"
                 )
             else:
                 return (
