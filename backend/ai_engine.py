@@ -38,16 +38,17 @@ async def process_customer_message(phone_number: str, user_text: str) -> str:
         # If API key is not yet set, provide a realistic mock response so testing works immediately
         api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
         if not api_key:
-            # Fallback mock engine demonstrating Pidgin & English awareness
-            text_lower = user_text.lower()
+            # Normalize multiple spaces and lowercase for reliable matching
+            text_clean = " ".join(user_text.lower().split())
 
             # Detect human handoff request
             handoff_triggers = [
                 "speak to human", "speak with human", "speak to someone", "talk to human",
                 "speak with owner", "speak to owner", "call owner", "call aduke", "talk to aduke",
-                "complaint", "speak to manager", "talk to manager", "human agent", "talk to a person", "human"
+                "complaint", "speak to manager", "talk to manager", "human agent", "talk to a person", "human",
+                "owner", "aduke"
             ]
-            if any(trigger in text_lower for trigger in handoff_triggers):
+            if any(trigger in text_clean for trigger in handoff_triggers):
                 from database import trigger_human_handoff
                 trigger_human_handoff(phone_number, reason=user_text)
                 
