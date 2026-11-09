@@ -40,6 +40,35 @@ async def process_customer_message(phone_number: str, user_text: str) -> str:
         if not api_key:
             # Fallback mock engine demonstrating Pidgin & English awareness
             text_lower = user_text.lower()
+
+            # Detect human handoff request
+            handoff_triggers = [
+                "speak to human", "speak with human", "speak to someone", "talk to human",
+                "speak with owner", "speak to owner", "call owner", "call aduke", "talk to aduke",
+                "complaint", "speak to manager", "talk to manager", "human agent", "talk to a person", "human"
+            ]
+            if any(trigger in text_lower for trigger in handoff_triggers):
+                from database import trigger_human_handoff
+                trigger_human_handoff(phone_number, reason=user_text)
+                
+                # Send notification alert to the owner's WhatsApp
+                owner_phone = os.getenv("OWNER_PHONE_NUMBER", "2348067421594")
+                if owner_phone:
+                    from whatsapp_client import send_whatsapp_message
+                    alert_text = (
+                        f"🚨 *SALON OWNER ALERT: HUMAN HANDOFF NEEDED*\n\n"
+                        f"📱 Customer: +{phone_number}\n"
+                        f"💬 Message: \"{user_text}\"\n\n"
+                        f"The customer requested to speak with you directly. You can now reply to them in WhatsApp!"
+                    )
+                    import asyncio
+                    asyncio.create_task(send_whatsapp_message(to_number=owner_phone, message_text=alert_text))
+
+                return (
+                    "No wahala at all! I don notify Aduke, our salon owner. 🙋🏾‍♀️\n\n"
+                    "She go check this chat and message you directly shortly. Thank you for your patience! 🙏"
+                )
+
             if any(w in text_lower for w in ["how far", "abeg", "wetin", "dey", "na"]):
                 return (
                     "How far! Welcome to Aduke Braids & Beauty Lounge! 😊 "

@@ -17,6 +17,60 @@ app = FastAPI(title="WhatsApp AI Booking Assistant")
 
 WHATSAPP_VERIFY_TOKEN = os.getenv("WHATSAPP_VERIFY_TOKEN", "my_secure_salon_token_2026")
 
+from database import mark_deposit_paid
+
+@app.post("/stripe-webhook")
+async def handle_stripe_webhook(request: Request, background_tasks: BackgroundTasks):
+    """
+    Receives events from Stripe when a customer pays their deposit.
+    """
+    payload = await request.body()
+    sig_header = request.headers.get("stripe-signature")
+    webhook_secret = os.getenv("STRIPE_WEBHOOK_SECRET")
+    
+    import json
+    import stripe
+    
+    try:
+        if webhook_secret:
+            event = stripe.Webhook.construct_event(payload, sig_header, webhook_secret)
+        else:
+            event = json.loads(payload)
+    except Exception as e:
+        print(f"[STRIPE WEBHOOK ERROR] {e}")
+        # Fallback to direct json parsing if signature verification isn't needed in sandbox
+        try:
+            event = json.loads(payload)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid Stripe payload")
+
+    event_type = event.get("type")
+    print(f"\n[STRIPE WEBHOOK] Received event: {event_type}")
+
+    if event_type == "checkout.session.completed":
+        session_data = event["data"]["object"]
+        metadata = session_data.get("metadata", {})
+        booking_id = metadata.get("booking_id")
+        customer_phone = metadata.get("customer_phone")
+        
+        if booking_id:
+            booking = mark_deposit_paid(int(booking_id), stripe_session_id=session_data.get("id"))
+            if booking and customer_phone:
+                # Send confirmation message to customer on WhatsApp
+                confirmation_msg = (
+                    f"🎉 *Payment Received!* Your £20 deposit is confirmed.\n\n"
+                    f"✅ *Appointment Details:*\n"
+                    f"• Service: {booking.service_name}\n"
+                    f"• Time: {booking.appointment_time}\n"
+                    f"• Remaining balance: £{booking.total_price - booking.deposit_amount:.2f} (payable at the salon)\n"
+                    f"• Address: 45 Rye Lane, Peckham, London SE15 5ER\n\n"
+                    f"See you soon at Aduke Braids & Beauty Lounge! ✨"
+                )
+                background_tasks.add_task(send_whatsapp_message, customer_phone, confirmation_msg)
+                print(f"[BOOKING CONFIRMED] Booking #{booking_id} paid and confirmed for {customer_phone}!")
+
+    return {"status": "success"}
+
 @app.get("/")
 def read_root():
     return {

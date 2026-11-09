@@ -10,9 +10,17 @@ if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
 # Configure engine parameters depending on SQLite vs PostgreSQL (Neon)
-connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
-
-engine = create_engine(DATABASE_URL, connect_args=connect_args)
+if DATABASE_URL.startswith("sqlite"):
+    engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+else:
+    # Neon Serverless PostgreSQL with auto-reconnect and pooling
+    engine = create_engine(
+        DATABASE_URL,
+        pool_pre_ping=True,
+        pool_recycle=300,
+        pool_size=5,
+        max_overflow=10
+    )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
@@ -28,7 +36,9 @@ class Booking(Base):
     deposit_amount = Column(Float, default=20.0)
     deposit_paid = Column(Boolean, default=False)
     stripe_session_id = Column(String, nullable=True)
-    status = Column(String, default="pending_deposit") # pending_deposit, confirmed, cancelled
+    needs_human_handoff = Column(Boolean, default=False)
+    handoff_reason = Column(String, nullable=True)
+    status = Column(String, default="pending_deposit") # pending_deposit, confirmed, cancelled, human_takeover
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
 def init_db():
@@ -67,3 +77,18 @@ def mark_deposit_paid(booking_id: int, stripe_session_id: str = None):
         return None
     finally:
         session.close()
+
+def trigger_human_handoff(phone: str, reason: str):
+    session = SessionLocal()
+    try:
+        # Check if booking exists for this phone or record handoff request
+        booking = session.query(Booking).filter(Booking.customer_phone == phone).order_by(Booking.id.desc()).first()
+        if booking:
+            booking.needs_human_handoff = True
+            booking.handoff_reason = reason
+            session.commit()
+            return booking
+        return None
+    finally:
+        session.close()
+
