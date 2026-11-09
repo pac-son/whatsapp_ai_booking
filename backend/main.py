@@ -1,7 +1,12 @@
 import os
+import sys
 import uvicorn
 from fastapi import FastAPI, Request, HTTPException, Response, BackgroundTasks
 from dotenv import load_dotenv
+
+# Ensure UTF-8 output on Windows consoles
+sys.stdout.reconfigure(encoding='utf-8')
+sys.stderr.reconfigure(encoding='utf-8')
 
 from ai_engine import process_customer_message
 from whatsapp_client import send_whatsapp_message
@@ -10,7 +15,7 @@ load_dotenv()
 
 app = FastAPI(title="WhatsApp AI Booking Assistant")
 
-WHATSAPP_VERIFY_TOKEN = os.getenv("WHATSAPP_VERIFY_TOKEN", "my_secure_verify_token_123")
+WHATSAPP_VERIFY_TOKEN = os.getenv("WHATSAPP_VERIFY_TOKEN", "my_secure_salon_token_2026")
 
 @app.get("/")
 def read_root():
@@ -24,7 +29,6 @@ def read_root():
 async def verify_webhook(request: Request):
     """
     Webhook Verification for WhatsApp Cloud API.
-    Meta sends a GET request with hub.mode, hub.verify_token, and hub.challenge.
     """
     mode = request.query_params.get("hub.mode")
     token = request.query_params.get("hub.verify_token")
@@ -34,21 +38,29 @@ async def verify_webhook(request: Request):
         print("[SUCCESS] Webhook verified successfully by Meta!")
         return Response(content=challenge, media_type="text/plain")
     
-    print(f"[ERROR] Verification failed. Received token: {token}, Expected: {WHATSAPP_VERIFY_TOKEN}")
+    print(f"[ERROR] Verification failed. Received token: {token}")
     raise HTTPException(status_code=403, detail="Verification token mismatch")
 
 async def handle_incoming_message_task(from_number: str, message_body: str):
     """
     Background worker: Processes message with AI and replies via WhatsApp Cloud API.
     """
-    print(f"\n📩 [INCOMING] From {from_number}: {message_body}")
-    
-    # 1. Process message through AI engine
-    reply_text = await process_customer_message(from_number, message_body)
-    print(f"🤖 [AI REPLY] To {from_number}:\n{reply_text}\n")
-    
-    # 2. Send the reply back to the customer on WhatsApp
-    await send_whatsapp_message(to_number=from_number, message_text=reply_text)
+    try:
+        print(f"\n[INCOMING] From {from_number}: {message_body}")
+        
+        # 1. Process message through AI engine
+        reply_text = await process_customer_message(from_number, message_body)
+        print(f"[AI REPLY] To {from_number}:\n{reply_text}\n")
+        
+        # 2. Send the reply back to the customer on WhatsApp
+        delivered = await send_whatsapp_message(to_number=from_number, message_text=reply_text)
+        if delivered:
+            print(f"[SUCCESS] Replied to {from_number}")
+        else:
+            print(f"[FAILED] Could not deliver message to {from_number}")
+            
+    except Exception as e:
+        print(f"[ERROR] Exception in message handling task: {e}")
 
 @app.post("/webhook")
 async def handle_whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
@@ -78,7 +90,7 @@ async def handle_whatsapp_webhook(request: Request, background_tasks: Background
                             background_tasks.add_task(handle_incoming_message_task, from_number, user_text)
                             
                         elif message_type == "audio":
-                            print(f"[AUDIO] Voice note received from {from_number} (Phase 2 capability)")
+                            print(f"[AUDIO] Voice note received from {from_number}")
                             background_tasks.add_task(
                                 send_whatsapp_message, 
                                 from_number, 
