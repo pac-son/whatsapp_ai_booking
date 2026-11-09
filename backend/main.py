@@ -71,6 +71,41 @@ async def handle_stripe_webhook(request: Request, background_tasks: BackgroundTa
 
     return {"status": "success"}
 
+from fastapi.templating import Jinja2Templates
+from fastapi.responses import HTMLResponse
+from business_config import BUSINESS_PROFILES, get_active_profile
+import database
+
+templates = Jinja2Templates(directory="templates")
+
+@app.get("/dashboard", response_class=HTMLResponse)
+async def view_owner_dashboard(request: Request, vertical: str = "salon"):
+    """
+    Mobile-first salon & barbershop owner dashboard.
+    """
+    profile = BUSINESS_PROFILES.get(vertical, BUSINESS_PROFILES["salon"])
+    
+    session = database.SessionLocal()
+    try:
+        bookings = session.query(database.Booking).order_by(database.Booking.id.desc()).all()
+        total_bookings = len(bookings)
+        confirmed_bookings = len([b for b in bookings if b.status == "confirmed" or b.deposit_paid])
+        total_revenue = sum([b.deposit_amount for b in bookings if b.status == "confirmed" or b.deposit_paid])
+        handoff_count = len([b for b in bookings if b.needs_human_handoff])
+        
+        return templates.TemplateResponse("dashboard.html", {
+            "request": request,
+            "profile": profile,
+            "active_vertical": vertical,
+            "bookings": bookings,
+            "total_bookings": total_bookings,
+            "confirmed_bookings": confirmed_bookings,
+            "total_revenue": total_revenue,
+            "handoff_count": handoff_count
+        })
+    finally:
+        session.close()
+
 @app.get("/")
 def read_root():
     return {

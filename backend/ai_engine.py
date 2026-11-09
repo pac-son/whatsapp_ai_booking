@@ -69,6 +69,46 @@ async def process_customer_message(phone_number: str, user_text: str) -> str:
                     "She go check this chat and message you directly shortly. Thank you for your patience! 🙏"
                 )
 
+            # Barbershop intent detection
+            barber_keywords = ["fade", "haircut", "beard", "line up", "shape up", "trim", "barber", "shave"]
+            if any(k in text_clean for k in barber_keywords):
+                if any(w in text_clean for w in ["book", "slot", "available", "friday", "saturday", "tomorrow", "today"]):
+                    from database import create_booking_record
+                    from stripe_service import create_deposit_checkout_session
+                    
+                    booking = create_booking_record(
+                        phone=phone_number,
+                        service="Skin Fade & Line Up",
+                        appt_time="Friday 3:00 PM",
+                        total_price=30.0,
+                        deposit=10.0
+                    )
+                    pay_link = create_deposit_checkout_session(
+                        booking_id=booking.id,
+                        service_name=booking.service_name,
+                        deposit_amount=booking.deposit_amount,
+                        customer_phone=phone_number
+                    )
+                    return (
+                        f"Sharp! We got Friday at 3:00 PM open at Krowns & Fades Afro Barbershop! 👑💈\n\n"
+                        f"📋 *Booking Summary:*\n"
+                        f"• Service: Skin Fade & Line Up (£30)\n"
+                        f"• Time: Friday @ 3:00 PM\n"
+                        f"• Deposit required: £10\n\n"
+                        f"Lock in your chair with your £10 deposit here:\n{pay_link}\n\n"
+                        f"Once paid, your slot is 100% reserved. Clean cuts only, my bro! ✂️"
+                    )
+                else:
+                    return (
+                        "Bless up king! Welcome to Krowns & Fades Afro Barbershop! 👑💈\n\n"
+                        "Here na our popular cut prices:\n"
+                        "• Skin Fade & Line Up: £30 (45 mins)\n"
+                        "• Haircut & Shape Up: £25 (30 mins)\n"
+                        "• Beard Sculpt & Hot Towel: £20\n"
+                        "• The VIP Full Service (Cut + Beard + Facial): £55\n\n"
+                        "Which day and time you go like come through for your cut?"
+                    )
+
             if any(w in text_lower for w in ["how far", "abeg", "wetin", "dey", "na"]):
                 return (
                     "How far! Welcome to Aduke Braids & Beauty Lounge! 😊 "
