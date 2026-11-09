@@ -16,7 +16,6 @@ def create_deposit_checkout_session(booking_id: int, service_name: str, deposit_
     stripe.api_key = key
     try:
         session = stripe.checkout.Session.create(
-            payment_method_types=["card"],
             line_items=[{
                 "price_data": {
                     "currency": "gbp",
